@@ -9,7 +9,7 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     depends_on: [zookeeper]
     ports:
-      - "9092:9092"
+      - "${KAFKA_PORT:-9092}:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -21,7 +21,7 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     ports:
-      - "8123:8123"
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
     environment:
       CLICKHOUSE_SKIP_USER_SETUP: "1"
     networks: [lambda_net]
@@ -29,7 +29,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     networks: [lambda_net]
 
   jobmanager:
@@ -37,7 +37,7 @@ services:
     image: lambda-canteen-flink:1.19-python-kafka
     command: jobmanager
     ports:
-      - "18081:8081"
+      - "${FLINK_UI_PORT:-8081}:8081"
     environment:
       - |
         FLINK_PROPERTIES=
@@ -61,7 +61,7 @@ services:
     depends_on: [kafka]
     environment:
       KAFKA_BROKER: kafka:9092
-      KAFKA_TOPIC: canteen_orders
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-canteen_orders}
     restart: on-failure
     networks: [lambda_net]
 
@@ -70,10 +70,10 @@ services:
     depends_on: [kafka]
     environment:
       KAFKA_BROKER: kafka:9092
-      KAFKA_TOPIC: canteen_orders
-      KAFKA_GROUP: raw-writer-v1
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-canteen_orders}
+      KAFKA_GROUP: ${KAFKA_GROUP:-raw-writer-v1}
       RAW_BASE: /data/raw
-      FLUSH_INTERVAL: "60"
+      FLUSH_INTERVAL: "${FLUSH_INTERVAL:-60}"
     volumes:
       - ./data:/data
     restart: on-failure
@@ -95,17 +95,17 @@ services:
     depends_on: [kafka, redis, jobmanager, taskmanager]
     environment:
       KAFKA_BROKER: kafka:9092
-      KAFKA_TOPIC: canteen_orders
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-canteen_orders}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      SPEED_TTL: "7200"
+      SPEED_TTL: "${SPEED_TTL:-7200}"
     networks: [lambda_net]
 
   api:
     build: ./api
     depends_on: [clickhouse, redis]
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     environment:
       CH_HOST: clickhouse
       CH_PORT: "8123"

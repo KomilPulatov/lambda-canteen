@@ -24,8 +24,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ch = clickhouse_connect.get_client(host=CH_HOST, port=CH_PORT)
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+
+
+def clickhouse_rows(query: str, parameters: dict) -> list:
+    client = clickhouse_connect.get_client(host=CH_HOST, port=CH_PORT)
+    try:
+        return client.query(query, parameters=parameters).result_rows
+    finally:
+        client.close()
 
 
 @app.get("/health")
@@ -35,15 +42,15 @@ def health():
 
 @app.get("/metrics/revenue-by-category")
 def revenue_by_category(day: str):
-    rows = ch.query(
+    rows = clickhouse_rows(
         """
         SELECT category, sum(revenue)
         FROM batch_revenue_by_category FINAL
         WHERE day = %(day)s
         GROUP BY category
         """,
-        parameters={"day": day},
-    ).result_rows
+        {"day": day},
+    )
 
     merged = {category: float(revenue) for category, revenue in rows}
 
@@ -64,19 +71,19 @@ def revenue_by_category(day: str):
 
 @app.get("/metrics/top-items")
 def top_items(day: str, limit: int = 5):
-    rows = ch.query(
+    rows = clickhouse_rows(
         """
         SELECT item_id, sum(quantity)
         FROM batch_top_items FINAL
         WHERE day = %(day)s
         GROUP BY item_id
         """,
-        parameters={"day": day},
-    ).result_rows
+        {"day": day},
+    )
 
     merged = {item_id: int(quantity) for item_id, quantity in rows}
 
-    for key in r.keys(f"speed:quantity:item:{day}:*"):
+    for key in r.scan_iter(f"speed:quantity:item:{day}:*"):
         item_id = key.split(":")[-1]
         delta = int(float(r.get(key) or 0))
         merged[item_id] = merged.get(item_id, 0) + delta
@@ -94,15 +101,15 @@ def top_items(day: str, limit: int = 5):
 
 @app.get("/metrics/orders-per-hour")
 def orders_per_hour(day: str):
-    rows = ch.query(
+    rows = clickhouse_rows(
         """
         SELECT hour, sum(orders)
         FROM batch_orders_per_hour FINAL
         WHERE day = %(day)s
         GROUP BY hour
         """,
-        parameters={"day": day},
-    ).result_rows
+        {"day": day},
+    )
 
     merged = {hour: int(orders) for hour, orders in rows}
 
