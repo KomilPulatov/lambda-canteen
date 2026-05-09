@@ -1,6 +1,6 @@
 # Lambda Canteen Analytics
 
-Homework 4 implementation of a Lambda Architecture analytics system.
+Implementation of a Lambda Architecture analytics system.
 
 ## Stack
 
